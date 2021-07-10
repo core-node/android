@@ -256,10 +256,10 @@ byte* lzw_encode(byte *in, int max_bits)
 {
   int len = _len(in), next_shift = 512;
   ushort code, c, nc, next_code = M_NEW;
-  lzw_enc_t *d = (lzw_enc_t*)_new(lzw_enc_t, 512);
+  lzw_enc_t *d = (lzw_enc_t*)_new(lzw_enc_t, 4096);
   bits=9;
   
-  
+  byte *stop=in+len;
  
   out = (byte*)_new(ushort, 4);
   out_len = 0;
@@ -270,8 +270,8 @@ byte* lzw_encode(byte *in, int max_bits)
   
  
   //write_bits(M_CLR);
-  for (code = readValue(br,8); br->start<=len; ) {
-    c = readValue(br,8);
+  for (code = *(in)++; in<stop; ) {
+    c = *(in)++;
     if ((nc = d[code].next[c]))
       code = nc;
     else {
@@ -419,8 +419,8 @@ char *intToStr(int value){int m=1;char *text;
   int sze=m;text =(char*) malloc(sze+1);char *p=text;
   while (m>0){
       int rest = (int)fmod((double)value,(pow(10,--m)));
-	  nptr[0]='0'+((value-rest)/pow(10,m));
-	  strncpy(p++,nptr,1);value=rest;}strncpy(p,"\0",1);
+	  *(p++)='0'+((value-rest)/pow(10,m));
+	  value=rest;}*(p)='\0';
    return text;}
 void addxi(void* ptr, int value){xe* xx = (xe*)ptr;char *text;int sze;
   if (value==0){text = zero;sze=1;}else text=intToStr(value);
@@ -462,7 +462,7 @@ char empty[]="\0";
 #define set(n,v) name(n,v,k)
 #define get(s) find(k, s)
 #define push(s) sl=(xe*)malloc(sizeof(xe)); set(s,sl) xnew(sl) sl->parent=(void*)k; k=sl;
-#define pop if(k->parent){k =k->parent;}
+#define back if(k->parent){k =k->parent;}
 #define select(s) k= (xe*)find(k,s);
 #define _(s) c(get(s))
 #define end done return 0; }
@@ -483,6 +483,7 @@ char* replace(char* in, char* sep, char* by){key xk = split(in, sep, (key)malloc
 byte*enc;
 bitWriter *zw;
 xe x;
+
 
 int test()
 {
@@ -516,8 +517,60 @@ int test()
   c("decompressed: ")m(_len(dec)) line
   
   free(in);
+  free(enc);
+  free(dec);
   
-   
+register int left;
+register int right;
+register int *next;
+  
+    int *add=&&plus;
+	int *sub=&&minus;
+	next=&&zero;
+	left=0;
+	
+  goto *next;
+  
+  plus:
+  left = left + right;
+  goto *next;
+  
+  minus:
+  left = left - right;
+  goto *next;
+  
+  zero:
+  left = 0;
+  
+  /*** our vm goes here ***/
+  /*** todo : benchmark from standard c and nodejs ***/
+  /*** 7100 + 237 - 340 + 23 - 39 ***/
+  next=&&a;
+  left=7100;
+  right=237;
+  goto *add;
+  
+  a:
+  m(left) line
+  next=&&b;
+  right=340;
+  goto *sub;
+  
+  
+  b:
+  m(left) line
+  next=&&c;
+  right=23;
+  goto *add;
+  
+  c:
+  m(left) line
+  next=&&d;
+  right=39;
+  goto *sub;
+  
+  d:
+  m(left) line
    done
   
 }
