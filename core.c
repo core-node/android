@@ -476,17 +476,64 @@ char *after(char *str, char *src){ char *s = str;int b = (*src) ? strlen(src) : 
 key split(char* src, char* sep, key xk){ char* in=malloc(strlen(src)+1);	strcpy(in, src);xnew(xk) char* e=after(in, sep);	 addxe(xk, before(in,sep)); while(e!=in){*(e-1)=0;  in=e; addxe(xk, before(e,sep)); e=after(in, sep); }	return xk;}
 char* replace(char* in, char* sep, char* by){key xk = split(in, sep, (key)malloc(sizeof(xe))); return join(xk, by);}
 
-xe *script(char *text)
+#define integer 254
+#define strings 253
+#define numbers 252
+#define runable 251
+
+void addNumber(char *text,int size, char tk)
 {
-   char space[]= " \n\r\t";
-   char op[]="~^|&!=<>+-*/%.";
-   char *order[]={".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
-   char token[]="`'\"(){}[]?:;,";
-   char number[]="0123456789e-.";
    char hexa[]="0123456789ABCDEF";
    char oct[]="01234567";
    char bin[]="01";
 
+}
+void addOperator(char *text,int size)
+{
+}
+void addIdentifier(char *text,int size)
+{
+}
+void addToken(char tk)
+{
+   char *order[]={"e",".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
+}
+
+xe *script(char *text)
+{
+   char brli[]=" \n\r\t";
+   char oper[]="~^|&!=<>+-*/%.e";
+   char tokn[]="`'\"(){}[]?:;,";
+   char nmbr[]="0123456789-";
+  
+  int sym=0,tid=0,tnm=0,top=0,len=strlen(text);
+  char *id=(char*)malloc(1024);
+  char *nm=(char*)malloc(1024);
+  char *op=(char*)malloc(1024);
+  while(sym<len){
+	char here=text[sym++];
+	if (tid==0 && strchr(nmbr,here)>0){
+         nm[tnm++]=here;
+	 if(top>0)addOperator(op,top);top=0;
+       }else if(strchr(oper,here)>0){
+	op[top++]=here;
+	 if(tid>0)addIdentifier(id,tid);tid=0;
+	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
+        }else if(strchr(tokn,here)>0){
+	 if(top>0)addOperator(op,top);top=0;
+	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
+	 if(tid>0)addIdentifier(id,tid);tid=0;
+	 addToken(here);
+        }else if(strchr(brli,here)>0){
+	 if(top>0)addOperator(op,top);top=0;
+	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
+	 if(tid>0)addIdentifier(id,tid);tid=0;
+       }else{
+	 if(top>0)addOperator(op,top);top=0;
+	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
+	id[tid++]=here;
+      }
+  }
 
 }
 
