@@ -476,62 +476,114 @@ char *after(char *str, char *src){ char *s = str;int b = (*src) ? strlen(src) : 
 key split(char* src, char* sep, key xk){ char* in=malloc(strlen(src)+1);	strcpy(in, src);xnew(xk) char* e=after(in, sep);	 addxe(xk, before(in,sep)); while(e!=in){*(e-1)=0;  in=e; addxe(xk, before(e,sep)); e=after(in, sep); }	return xk;}
 char* replace(char* in, char* sep, char* by){key xk = split(in, sep, (key)malloc(sizeof(xe))); return join(xk, by);}
 
-#define integer 254
-#define strings 253
-#define numbers 252
-#define runable 251
+#define INTEGER 254
+#define STRINGS 253
+#define NUMBERS 252
+#define RUNABLE 251
 
-void addNumber(char *text,int size, char tk)
+typedef struct {
+  xe *root;
+  xe *node;
+
+  char id[1024];
+  char op[1024];
+  char nb[1024];
+
+	int len_id;
+	int len_op;
+	int len_nb;
+        int sym;
+        int len;
+
+ char *text;
+ char here;
+
+} scripter;
+scripter sys;
+
+void addNumber()
 {
    char hexa[]="0123456789ABCDEF";
    char oct[]="01234567";
    char bin[]="01";
 
-}
-void addOperator(char *text,int size)
-{
-}
-void addIdentifier(char *text,int size)
-{
-}
-void addToken(char tk)
-{
-   char *order[]={"e",".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
+   sys.nb[sys.len_nb]=0;
+
+   xe *value = (xe*) malloc(sizeof(xe));
+   value->parent = (void*) NUMBERS;
+   double *data=calloc(1,sizeof(double));
+   *data=atof(sys.nb);
+   value->data = (void**) data;
+
+   addx(sys.node,value);
+
+   //todo : check hexa/oct/bin integer value
+   //todo : check 'e' token
+   //todo : optimize to integer when possible
 }
 
+void addOperator()
+{
+   char *order[]={".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
+
+   sys.op[sys.len_op]=0;
+
+}
+
+void addIdentifier()
+{
+   sys.id[sys.len_id]=0;
+
+}
+
+typedef xe *(*token)();
+token tokens[256];
+
+void addToken()
+{
+    xe *node=tokens[sys.here]();
+    addx(sys.node,node);
+}
+
+void script_next();
 xe *script(char *text)
 {
+  sys.text=text;
+  sys.sym=0;
+  sys.len=strlen(text);
+  while(sys.sym<sys.len)script_next();
+}
    char brli[]=" \n\r\t";
-   char oper[]="~^|&!=<>+-*/%.e";
+   char oper[]="~^|&!=<>+-*/%.";
    char tokn[]="`'\"(){}[]?:;,";
    char nmbr[]="0123456789-";
-  
-  int sym=0,tid=0,tnm=0,top=0,len=strlen(text);
-  char *id=(char*)malloc(1024);
-  char *nm=(char*)malloc(1024);
-  char *op=(char*)malloc(1024);
-  while(sym<len){
-	char here=text[sym++];
-	if (tid==0 && strchr(nmbr,here)>0){
-         nm[tnm++]=here;
-	 if(top>0)addOperator(op,top);top=0;
-       }else if(strchr(oper,here)>0){
-	op[top++]=here;
-	 if(tid>0)addIdentifier(id,tid);tid=0;
-	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
-        }else if(strchr(tokn,here)>0){
-	 if(top>0)addOperator(op,top);top=0;
-	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
-	 if(tid>0)addIdentifier(id,tid);tid=0;
-	 addToken(here);
-        }else if(strchr(brli,here)>0){
-	 if(top>0)addOperator(op,top);top=0;
-	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
-	 if(tid>0)addIdentifier(id,tid);tid=0;
+
+void script_next()
+{
+  while(sys.sym<sys.len)
+  {
+	sys.here=sys.text[sys.sym++];
+
+	if (sys.len_id==0 && strchr(nmbr,sys.here)>0){
+         sys.nb[sys.len_nb++]=sys.here;
+	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
+       }else if(strchr(oper,sys.here)>0){
+	 sys.op[sys.len_op++]=sys.here;
+	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
+	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
+        }else if(strchr(tokn,sys.here)>0){
+	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
+	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
+	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
+	 addToken();
+        }else if(strchr(brli,sys.here)>0){
+	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
+	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
+	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
        }else{
-	 if(top>0)addOperator(op,top);top=0;
-	 if(tnm>0)addNumber(nm,tnm,here);tnm=0;
-	id[tid++]=here;
+	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
+	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
+	 sys.id[sys.len_id++]=sys.here;
       }
   }
 
