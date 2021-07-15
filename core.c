@@ -453,7 +453,11 @@ char empty[]="\0";
 #define xinit  x.cnt = 0; x.len = 0; x.data = malloc(1048576*4); 
 #define stm xe *k = malloc(sizeof(xe));xnew(k) 
 //xnew 4096 per node : allows 512Gb Total
+#define xvalue  xe *value = (xe*) malloc(sizeof(xe));
 #define xnew(p)  p->cnt =0;p->len =0;p->data=malloc(1024);
+#define xtype(t) value->parent = (void*) t;
+#define xdata(p,t,d) t *data =(t*) _new(t,1);*data = d;p->data = (void**) data;
+
 #define name(n,v,k) setCRC(n,v,k);
 #define set(n,v) name(n,v,k)
 #define get(s) find(k, s)
@@ -496,11 +500,12 @@ typedef struct {
         int len;
 
  char *text;
+ void *next;
  char here;
 
 } scripter;
 scripter sys;
-
+xe*modules(xe*);
 void addNumber()
 {
    char hexa[]="0123456789ABCDEF";
@@ -508,14 +513,9 @@ void addNumber()
    char bin[]="01";
 
    sys.nb[sys.len_nb]=0;
-
-   xe *value = (xe*) malloc(sizeof(xe));
-   value->parent = (void*) NUMBERS;
-   double *data=calloc(1,sizeof(double));
-   *data=atof(sys.nb);
-   value->data = (void**) data;
-
-   addx(sys.node,value);
+   xvalue xtype(NUMBERS)
+   xdata(value, double, atof(sys.nb));
+   addx(sys.node, value);
 
    //todo : check hexa/oct/bin integer value
    //todo : check 'e' token
@@ -524,16 +524,20 @@ void addNumber()
 
 void addOperator()
 {
-   char *order[]={".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
+   char * order[]={".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
 
    sys.op[sys.len_op]=0;
 
+   xvalue xnew(value) xtype(RUNABLE)
+   addxe(value, sys.op);
+   addx(sys.node, value);
+   sys.node = value;
 }
 
 void addIdentifier()
 {
    sys.id[sys.len_id]=0;
-
+   addx(sys.node, sys.id);
 }
 
 typedef xe *(*token)();
@@ -542,12 +546,14 @@ token tokens[256];
 void addToken()
 {
     xe *node=tokens[sys.here]();
-    addx(sys.node,node);
+    addx(sys.node, node);
 }
 
 void script_next();
 xe *script(char *text)
 {
+  xvalue xnew(value);
+  sys.root = modules(value);
   sys.text=text;
   sys.sym=0;
   sys.len=strlen(text);
@@ -572,25 +578,237 @@ void script_next()
 	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
 	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
         }else if(strchr(tokn,sys.here)>0){
-	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
-	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
-	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
-	 addToken();
+	 if(sys.len_op>0){addOperator();sys.len_op=0;}
+	 if(sys.len_nb>0){addNumber();sys.len_nb=0;}
+	 if(sys.len_id>0){addIdentifier();sys.len_id=0;}
+	 addToken();return;
         }else if(strchr(brli,sys.here)>0){
 	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
 	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
 	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
        }else{
+	 sys.id[sys.len_id++]=sys.here;
 	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
 	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
-	 sys.id[sys.len_id++]=sys.here;
       }
   }
 
 }
 
+xe* round_open()
+{
+}
+
+xe* round_close()
+{
+}
+
+xe* curly_open()
+{
+}
+
+xe* curly_close()
+{
+}
+
+xe* square_open()
+{
+}
+
+xe* square_close()
+{
+}
+
+xe* question()
+{
+}
+
+xe* dblpoint()
+{
+}
+
+xe* pointcomma()
+{
+
+}
+
+xe* comma()
+{
+}
+
+xe* quote()
+{
+}
+
+xe* dblquote()
+{
+}
+
+xe* invquote()
+{
+}
+
 xe *modules(xe *root)
 {
+  tokens['(']=&round_open;
+  tokens[')']=&round_close;
+  tokens['{']=&curly_open;
+  tokens['}']=&curly_close;
+  tokens['[']=&square_open;
+  tokens[']']=&square_close;
+  tokens['?']=&question;
+  tokens[':']=&dblpoint;
+  tokens[';']=&pointcomma;
+  tokens[',']=&comma;
+  tokens['\'']=&quote;
+  tokens['"']=&dblquote;
+  tokens['`']=&invquote;
+
+  xe *k=root;
+  push("op");
+
+  set(".",	&&point);
+  set("++",	&&inc);
+  set("--",	&&dec);
+  set("~",	&&neg);
+  set("!",	&&not);
+  set("**",	&&pow);
+  set("*",	&&mul);
+  set("/",	&&div);
+  set("%",	&&rest);
+  set("+",	&&add);
+  set("-",	&&sub);
+  set("<<",	&&shl);
+  set(">>",	&&shr);
+  set("<<<",	&&sshl);
+  set(">>>",	&&sshr);
+  set("<",	&&lt);
+  set(">",	&&gt);
+  set("<=",  	&&lteq);
+  set(">=", 	&&gteq);
+  set("==", 	&&eq);
+  set("!=",	&&neq);
+  set("===",   	&&ueq);
+  set("!==",   	&&nueq);
+  set("&",   	&&band);
+  set("^",   	&&bxor);
+  set("|",   	&&bor);
+  set("&&",   	&&and);
+  set("||",   	&&or);
+  set("=",   	&&st);
+  set("+=",   	&&addst);
+  set("-=",   	&&subst);
+  set("*=",   	&&mulst);
+  set("/=",   	&&divst);
+  set("**=",   	&&powst);
+  set("%=",   	&&restst);
+  set("<<=",   	&&shlst);
+  set(">>=",   	&&shrst);
+  set("<<<=",  	&&sshlst);
+  set(">>>=",  	&&sshrst);
+  set("&=",   	&&andst);
+  set("^=",   	&&xorst);
+  set("|=",   	&&orst);
+
+
+
+//   char * order[]={".","++","--",
+//"~","!","**",
+//"*","/","%","+","-",
+//"<<",">>","<<<",">>>",
+//"<",">","<=",">=","==","!=","===","!==",
+//"&","^","|","&&","||",
+//"=","+=","-=","*=","/=","**=","%=",
+//"<<=",">>=","<<<=",">>>=","&=","^=","|="};
+
+  point:
+   goto *sys.next;
+  inc:
+   goto *sys.next;
+  dec:
+   goto *sys.next;
+  neg:
+   goto *sys.next;
+  not:
+   goto *sys.next;
+  pow:
+   goto *sys.next;
+  mul:
+   goto *sys.next;
+  div:
+   goto *sys.next;
+  rest:
+   goto *sys.next;
+  add:
+   goto *sys.next;
+  sub:
+   goto *sys.next;
+  shl:
+   goto *sys.next;
+  shr:
+   goto *sys.next;
+  sshl:
+   goto *sys.next;
+  sshr:
+   goto *sys.next;
+
+  lt:
+   goto *sys.next;
+  gt:
+   goto *sys.next;
+  lteq:
+   goto *sys.next;
+  gteq:
+   goto *sys.next;
+  eq:
+   goto *sys.next;
+  neq:
+   goto *sys.next;
+  ueq:
+   goto *sys.next;
+  nueq:
+   goto *sys.next;
+
+  band:
+   goto *sys.next;
+  bxor:
+   goto *sys.next;
+  bor:
+   goto *sys.next;
+
+  and:
+   goto *sys.next;
+  or:
+   goto *sys.next;
+
+  st:
+   goto *sys.next;
+  addst:
+   goto *sys.next;
+  subst:
+   goto *sys.next;
+  mulst:
+   goto *sys.next;
+  divst:
+   goto *sys.next;
+  powst:
+   goto *sys.next;
+  restst:
+   goto *sys.next;
+  shlst:
+   goto *sys.next;
+  shrst:
+   goto *sys.next;
+  sshlst:
+   goto *sys.next;
+  sshrst:
+   goto *sys.next;
+  andst:
+   goto *sys.next;
+  xorst:
+   goto *sys.next;
+  orst:
+   goto *sys.next;
 }
 
 
