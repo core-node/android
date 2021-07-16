@@ -508,46 +508,46 @@ scripter sys;
 xe*modules(xe*);
 void addNumber()
 {
-   char hexa[]="0123456789ABCDEF";
-   char oct[]="01234567";
-   char bin[]="01";
-
    sys.nb[sys.len_nb]=0;
    xvalue xtype(NUMBERS)
    xdata(value, double, atof(sys.nb));
    addx(sys.node, value);
 
    //todo : check hexa/oct/bin integer value
-   //todo : check 'e' token
    //todo : optimize to integer when possible
 }
+   char * order[]={".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
+   int order_len=42;
 
 void addOperator()
 {
-   char * order[]={".","++","--","~","!","**","*","/","%","+","-","<<",">>","<<<",">>>","<",">","<=",">=","==","!=","===","!==","&","^","|","&&","||","=","+=","-=","*=","/=","**=","%=","<<=",">>=","<<<=",">>>=","&=","^=","|="};
-
+   int x;
    sys.op[sys.len_op]=0;
+   for(x=0;x<order_len;x++)
+    if(strcmp(sys.op,order[x])==0)
+     break;
 
-   xvalue xnew(value) xtype(RUNABLE)
-   addxe(value, sys.op);
-   addx(sys.node, value);
-   sys.node = value;
+   if(x<order_len){
+     xvalue xnew(value) xtype(RUNABLE)
+     addxe(value, order[x]);
+     addx(sys.node, value);
+     sys.node = value;
+   }
 }
 
 void addIdentifier()
 {
    sys.id[sys.len_id]=0;
-   addx(sys.node, sys.id);
+   int m=1024;
+   int l=strlen(sys.id);
+   while(m<=l)m+=1024;
+   char *copy=malloc(m);
+   strcpy(copy,sys.id);
+   addx(sys.node, copy);
 }
 
-typedef xe *(*token)();
+typedef void (*token)();
 token tokens[256];
-
-void addToken()
-{
-    xe *node=tokens[sys.here]();
-    addx(sys.node, node);
-}
 
 void script_next();
 xe *script(char *text)
@@ -562,7 +562,7 @@ xe *script(char *text)
    char brli[]=" \n\r\t";
    char oper[]="~^|&!=<>+-*/%.";
    char tokn[]="`'\"(){}[]?:;,";
-   char nmbr[]="0123456789-";
+   char nmbr[]="0123456789";
 
 void script_next()
 {
@@ -574,77 +574,86 @@ void script_next()
          sys.nb[sys.len_nb++]=sys.here;
 	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
        }else if(strchr(oper,sys.here)>0){
-	 sys.op[sys.len_op++]=sys.here;
+	 if(sys.here=='.' && sys.len_nb>0)
+         {sys.nb[sys.len_nb++]=sys.here;script_next();return;}
+	 else if(sys.here=='-' && sys.nb[sys.len_nb-1]=='e')
+         {sys.nb[sys.len_nb++]=sys.here;script_next();return;}
+	 else if(sys.here=='+' && sys.nb[sys.len_nb-1]=='e')
+         {sys.nb[sys.len_nb++]=sys.here;script_next();return;}
+	 else
+         sys.op[sys.len_op++]=sys.here;
 	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
 	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
         }else if(strchr(tokn,sys.here)>0){
 	 if(sys.len_op>0){addOperator();sys.len_op=0;}
 	 if(sys.len_nb>0){addNumber();sys.len_nb=0;}
 	 if(sys.len_id>0){addIdentifier();sys.len_id=0;}
-	 addToken();return;
+	 tokens[sys.here]();return;
         }else if(strchr(brli,sys.here)>0){
 	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
 	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
 	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
        }else{
-	 sys.id[sys.len_id++]=sys.here;
+         if(sys.len_nb>0 && sys.here=='e')
+	  sys.nb[sys.len_nb++]=sys.here;
+	 else
+	  sys.id[sys.len_id++]=sys.here;
 	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
-	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
       }
   }
 
 }
 
-xe* round_open()
+void round_open()
 {
 }
 
-xe* round_close()
+void round_close()
 {
 }
 
-xe* curly_open()
+void curly_open()
 {
 }
 
-xe* curly_close()
+void curly_close()
 {
 }
 
-xe* square_open()
+void square_open()
 {
 }
 
-xe* square_close()
+void square_close()
 {
 }
 
-xe* question()
+void question()
 {
 }
 
-xe* dblpoint()
+void dblpoint()
 {
 }
 
-xe* pointcomma()
+void pointcomma()
 {
 
 }
 
-xe* comma()
+void comma()
 {
 }
 
-xe* quote()
+void quote()
 {
 }
 
-xe* dblquote()
+void dblquote()
 {
 }
 
-xe* invquote()
+void invquote()
 {
 }
 
@@ -827,82 +836,20 @@ int test()
    xinit; stm
    line
    int i,fd = open("uiux.html", O_RDONLY);
- 
   if (fd == -1) {
     c( "Can't read file");
 	done
-    
   };
- 
+
   struct stat st;
   fstat(fd, &st);
- 
   byte *in = (byte*)_new(char, st.st_size);
   read(fd, in, st.st_size);
   _setsize(in, st.st_size);
   close(fd);
- 
   c("input size: ") m(_len(in)) line
-  
- 
-
-
-  
-int left;
-int right;
-void *next;
-  
-void *add=&&plus;
-void *sub=&&minus;
-	next=&&zero;
-	left=0;
-	
-  goto *next;
-  
-  plus:
-  left = left + right;
-  goto *next;
-  
-  minus:
-  left = left - right;
-  goto *next;
-  
-  zero:
-  left = 0;
-  
-  /*** our vm goes here ***/
-  /*** todo : benchmark from standard c and nodejs ***/
-  /*** 7100 + 237 - 340 + 23 - 39 ***/
-  
-  next=&&a;
-  left=7100;
-  right=237;
-  goto *add;
-  
-  a:
-  m(left) line
-  next=&&b;
-  right=340;
-  goto *sub;
-  
-  
-  b:
-  m(left) line
-  next=&&c;
-  right=23;
-  goto *add;
-  
-  c:
-  m(left) line
-  next=&&d;
-  right=39;
-  goto *sub;
-  
-  d:
-  m(left) line
 
    done
-  
 }
 
 
