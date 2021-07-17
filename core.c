@@ -484,10 +484,14 @@ char* replace(char* in, char* sep, char* by){key xk = split(in, sep, (key)malloc
 #define STRINGS 253
 #define NUMBERS 252
 #define RUNABLE 251
+#define RAYLIST 250
+#define BOOLEAN 249
 
 typedef struct {
   xe *root;
+  xe *rootStack;
   xe *node;
+  xe *nodeStack;
 
   char id[1024];
   char op[1024];
@@ -606,18 +610,41 @@ void script_next()
 
 void round_open()
 {
+  addx(sys.nodeStack,sys.node);
+  xvalue xnew(value)
+  sys.node = value;
 }
 
 void round_close()
 {
+  if(sys.nodeStack->cnt>0){
+
+    sys.nodeStack->cnt--;
+    xe *prevNode = sys.nodeStack->data[sys.nodeStack->cnt];
+    sys.node = prevNode;
+
+  }
 }
 
 void curly_open()
 {
+  addx(sys.rootStack,sys.root);
+  xvalue xnew(value)
+  sys.node = value;
+  sys.root = value;
 }
 
 void curly_close()
 {
+  if(sys.rootStack->cnt>0){
+
+    sys.rootStack->cnt--;
+    xe *prevRoot = sys.rootStack->data[sys.rootStack->cnt];
+    sys.node = prevRoot;
+    sys.root = prevRoot;
+
+  }
+
 }
 
 void square_open()
