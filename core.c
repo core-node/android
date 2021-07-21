@@ -44,22 +44,19 @@ void func(int sockfd)
 		
 } 
 
-int serve() 
+int serve(int port) 
 { 
 
 	
     int s, c, len; 
     struct sockaddr_in servaddr, cli; 
 
-    s = socket(AF_INET, SOCK_STREAM, 0); 
     bzero(&servaddr, sizeof(servaddr)); 
-
-  
     servaddr.sin_family = AF_INET; 
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); 
     servaddr.sin_port = htons(PORT); 
 
- 
+    s = socket(AF_INET, SOCK_STREAM, 0);  
     if ((bind(s, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
 		return 1;
     }
@@ -68,12 +65,11 @@ int serve()
     } 
 
     len = sizeof(cli); 
-    
 c = accept(s, (SA*)&cli, &len); 
     
-	if (c < 0) { return 1; } 
-
+	if (c >= 0) 
     func(c);
+
     close(s);
     return 0;
 
@@ -496,15 +492,18 @@ typedef struct {
   char id[1024];
   char op[1024];
   char nb[1024];
+  char *st;
 
 	int len_id;
 	int len_op;
 	int len_nb;
+	int len_st;
         int sym;
         int len;
 
  char *text;
  void *next;
+ char *error;
  char here;
 
 } scripter;
@@ -552,18 +551,25 @@ void addIdentifier()
 
 typedef void (*token)();
 token tokens[256];
+char special[256];
 
 void script_next();
 xe *script(char *text)
 {
   xvalue xnew(value);
   sys.root = modules(value);
+  sys.node = sys.root;
+  sys.nodeStack = _new(xe,1); xnew(sys.nodeStack);
+  sys.rootStack = _new(xe,1); xnew(sys.rootStack);
   sys.text=text;
-  sys.sym=0;
-  sys.len=strlen(text);
+  sys.sym = 0;
+  sys.len = strlen(text);
+  sys.error = 0;
   while(sys.sym<sys.len)script_next();
+
+  return value;
 }
-   char brli[]=" \n\r\t";
+   char brli[]=" \n\r\t\f\v";
    char oper[]="~^|&!=<>+-*/%.";
    char tokn[]="`'\"(){}[]?:;,";
    char nmbr[]="0123456789";
@@ -594,9 +600,9 @@ void script_next()
 	 if(sys.len_id>0){addIdentifier();sys.len_id=0;}
 	 tokens[sys.here]();return;
         }else if(strchr(brli,sys.here)>0){
-	 if(sys.len_op>0){addOperator();sys.len_op=0;return;}
-	 if(sys.len_nb>0){addNumber();sys.len_nb=0;return;}
-	 if(sys.len_id>0){addIdentifier();sys.len_id=0;return;}
+	 if(sys.len_op>0){addOperator();sys.len_op=0;}
+	 if(sys.len_nb>0){addNumber();sys.len_nb=0;}
+	 if(sys.len_id>0){addIdentifier();sys.len_id=0;}
        }else{
          if(sys.len_nb>0 && sys.here=='e')
 	  sys.nb[sys.len_nb++]=sys.here;
@@ -608,6 +614,38 @@ void script_next()
 
 }
 
+void handle_quote(int bDenyNewLine, char ending)
+{
+  sys.st = malloc(1024);
+  _setsize(sys.st,1024);
+  while(sys.sym<sys.len)
+  {
+	sys.here=sys.text[sys.sym++];
+        if (sys.here==ending)
+          return;
+
+        if(bDenyNewLine && sys.here=='\n')
+        {
+           sys.error = "new line in literal";
+           return;
+        }
+        if (sys.here=='\\')
+	{
+		sys.here=sys.text[sys.sym++];
+                //todo: handle unicode
+                if(sys.here=='x')
+                  sys.sym+=2;
+		else if (special[sys.here]!=0)
+		  sys.st[sys.len_st++]=special[sys.here];
+                else
+                  sys.st[sys.len_st++]=sys.here;
+        }else
+         sys.st[sys.len_st++]=sys.here;
+
+        if (sys.len_st>=_len(sys.st))
+           _extend(sys.st);
+  }
+}
 void round_open()
 {
   addx(sys.nodeStack,sys.node);
@@ -649,10 +687,20 @@ void curly_close()
 
 void square_open()
 {
+  addx(sys.nodeStack,sys.node);
+  xvalue xnew(value) xtype(RAYLIST)
+  sys.node = value;
 }
 
 void square_close()
 {
+  if(sys.nodeStack->cnt>0){
+
+    sys.nodeStack->cnt--;
+    xe *prevNode = sys.nodeStack->data[sys.nodeStack->cnt];
+    sys.node = prevNode;
+
+  }
 }
 
 void question()
@@ -665,27 +713,33 @@ void dblpoint()
 
 void pointcomma()
 {
-
+  sys.node = sys.root;
 }
 
 void comma()
 {
+  xe *prevNode = sys.nodeStack->data[sys.nodeStack->cnt-1];
+  sys.node = prevNode;
 }
 
 void quote()
 {
+   handle_quote(1,'\'');
 }
 
 void dblquote()
 {
+  handle_quote(1,'"');
 }
 
 void invquote()
 {
+  handle_quote(0,'`');
 }
 
 xe *modules(xe *root)
 {
+
   tokens['(']=&round_open;
   tokens[')']=&round_close;
   tokens['{']=&curly_open;
@@ -699,6 +753,13 @@ xe *modules(xe *root)
   tokens['\'']=&quote;
   tokens['"']=&dblquote;
   tokens['`']=&invquote;
+
+  memset(special,0,256);
+  special['n']='\n';
+  special['t']='\t';
+  special['r']='\r';
+  special['f']='\f';
+  special['v']='\v';
 
   xe *k=root;
   push("op");
@@ -748,14 +809,6 @@ xe *modules(xe *root)
 
 
 
-//   char * order[]={".","++","--",
-//"~","!","**",
-//"*","/","%","+","-",
-//"<<",">>","<<<",">>>",
-//"<",">","<=",">=","==","!=","===","!==",
-//"&","^","|","&&","||",
-//"=","+=","-=","*=","/=","**=","%=",
-//"<<=",">>=","<<<=",">>>=","&=","^=","|="};
 
   point:
    goto *sys.next;
@@ -882,5 +935,5 @@ int test()
 
 int main(int argc, char **argv)
 {
-	serve();
+	serve(PORT);
 }
